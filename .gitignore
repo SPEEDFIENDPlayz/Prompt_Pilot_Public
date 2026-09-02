@@ -4,3 +4,4 @@ dist/
 *.local
 *.tar.gz
 *.tgz
+web/.git.source-backup/
