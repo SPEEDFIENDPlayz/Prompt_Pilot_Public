@@ -1,0 +1,43 @@
+:root { color-scheme: dark light; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; background: #111318; color: #f5f7fb; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { min-width: 320px; min-height: 100dvh; margin: 0; background: radial-gradient(circle at 50% 0%, #1d2b2e 0, #111318 44rem); }
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #67e8b1; outline-offset: 3px; }
+#app { width: min(100%, 560px); min-height: 100dvh; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 22px max(28px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
+header { display: flex; align-items: flex-start; justify-content: space-between; }
+h1, h2, p { margin: 0; }
+h1 { font-size: clamp(28px, 8vw, 40px); letter-spacing: -.045em; line-height: 1.05; }
+h2 { font-size: 21px; }
+.eyebrow { color: #86efac; font-weight: 650; font-size: 14px; letter-spacing: .03em; margin-bottom: 7px; }
+.icon-button { width: 40px; height: 40px; padding: 0; color: inherit; background: transparent; border: 1px solid #3c424d; border-radius: 50%; font-size: 20px; }
+.mode-control { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 5px; border: 1px solid #343944; border-radius: 14px; margin-top: 36px; background: #1b1e25; }
+.mode-control button { min-height: 42px; border: 0; color: #bfc5d0; background: transparent; border-radius: 10px; font-size: 15px; font-weight: 650; }
+.mode-control button.selected { color: #102019; background: #86efac; }
+.record-section { display: flex; min-height: 344px; flex: 1; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.mic { width: 112px; height: 112px; display: grid; place-items: center; border: 0; border-radius: 50%; color: #092016; background: #86efac; box-shadow: 0 13px 40px rgb(0 0 0 / .34); transition: transform .16s ease, background .16s ease; }
+.mic:active { transform: scale(.95); }
+.mic:disabled { opacity: .72; cursor: wait; }
+.mic svg { width: 43px; height: 43px; fill: currentColor; }
+.mic.recording { color: white; background: #e75050; animation: recording-pulse 1.35s infinite; }
+@keyframes recording-pulse { 50% { box-shadow: 0 0 0 15px rgb(231 80 80 / .15), 0 13px 40px rgb(0 0 0 / .34); } }
+#status { margin-top: 25px; font-size: 18px; font-weight: 700; }
+.detail { max-width: 330px; margin-top: 8px; color: #a4aab5; font-size: 14px; line-height: 1.45; }
+.result { margin-top: auto; padding-top: 12px; }
+label { display: block; margin: 0 0 8px; color: #cdd2db; font-size: 14px; font-weight: 700; }
+textarea, input { width: 100%; color: inherit; background: #1b1e25; border: 1px solid #414754; border-radius: 14px; padding: 14px; }
+textarea { min-height: 178px; resize: vertical; line-height: 1.48; }
+.primary { width: 100%; min-height: 54px; margin-top: 12px; border: 0; border-radius: 15px; color: #092016; background: #86efac; font-size: 17px; font-weight: 800; }
+.secondary-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 9px; }
+.secondary-actions button, .text-button { min-height: 44px; color: #d9dfe8; border: 1px solid #3c424d; border-radius: 12px; background: transparent; }
+.setup-card { width: 100%; max-width: 410px; margin: auto; padding: 28px 0; }
+.setup-card .brand-mark { width: 52px; height: 52px; display: grid; place-items: center; margin-bottom: 22px; border-radius: 16px; color: #092016; background: #86efac; font-size: 25px; }
+.setup-card p { margin: 17px 0 29px; color: #b1b7c2; line-height: 1.55; }
+.setup-card .privacy, .privacy { margin: 11px 0 0; color: #8f96a2; font-size: 13px; line-height: 1.45; }
+dialog { width: min(calc(100% - 32px), 420px); padding: 20px; border: 1px solid #424958; border-radius: 18px; color: #f5f7fb; background: #1b1e25; box-shadow: 0 24px 80px rgb(0 0 0 / .55); }
+dialog::backdrop { background: rgb(0 0 0 / .58); }
+.dialog-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; }
+.dialog-heading .icon-button { font-size: 28px; line-height: 1; }
+.text-button { width: 100%; margin-top: 10px; color: #ffb4b4; border: 0; }
+@media (prefers-color-scheme: light) { :root { background: #f8faf9; color: #142019; } body { background: radial-gradient(circle at 50% 0%, #d7f8e7 0, #f8faf9 44rem); } .mode-control, textarea, input, dialog { background: #fff; border-color: #d7dedb; } .mode-control button { color: #56615b; } .detail, .setup-card p { color: #5f6b63; } label { color: #405047; } .icon-button, .secondary-actions button { border-color: #cbd5d0; color: #24352b; } }
+@media (max-height: 680px) { .record-section { min-height: 270px; } .mode-control { margin-top: 24px; } .mic { width: 94px; height: 94px; } }

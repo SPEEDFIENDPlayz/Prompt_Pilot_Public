@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.tmpchrome/
+*.local
+*.tar.gz
+*.tgz
