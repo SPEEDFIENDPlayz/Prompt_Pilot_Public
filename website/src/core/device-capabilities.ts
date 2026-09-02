@@ -7,6 +7,19 @@ export interface DeviceCapabilities {
   deviceMemory?: number;
 }
 
+export interface DeviceSignals {
+  isPhone: boolean;
+  hasWebGPU: boolean;
+  hardwareConcurrency: number;
+  deviceMemory?: number;
+}
+
+export function classifyDeviceClass(signals: DeviceSignals): DeviceClass {
+  if (signals.isPhone) return "phone";
+  const memoryConstrained = typeof signals.deviceMemory === "number" && signals.deviceMemory < 4;
+  return signals.hasWebGPU && signals.hardwareConcurrency >= 6 && !memoryConstrained ? "capable-desktop" : "constrained-desktop";
+}
+
 function isPhone(): boolean {
   const ua = navigator.userAgent || "";
   const mobileSignal = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
@@ -18,9 +31,7 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
   const hardwareConcurrency = navigator.hardwareConcurrency || 2;
   const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
   const hasWebGPU = "gpu" in navigator;
-  if (isPhone()) return { deviceClass: "phone", hasWebGPU, hardwareConcurrency, deviceMemory };
-  const memoryConstrained = typeof deviceMemory === "number" && deviceMemory < 4;
-  const deviceClass = hasWebGPU && hardwareConcurrency >= 6 && !memoryConstrained ? "capable-desktop" : "constrained-desktop";
+  const deviceClass = classifyDeviceClass({ isPhone: isPhone(), hasWebGPU, hardwareConcurrency, deviceMemory });
   return { deviceClass, hasWebGPU, hardwareConcurrency, deviceMemory };
 }
 

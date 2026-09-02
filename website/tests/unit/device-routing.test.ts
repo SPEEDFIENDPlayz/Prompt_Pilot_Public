@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { shouldUseCloud } from "../../src/core/device-capabilities";
+import { classifyDeviceClass, shouldUseCloud } from "../../src/core/device-capabilities";
 import { mergeChunkText } from "../../src/transcription/chunked-local";
 import { GeminiTranscriber } from "../../src/transcription/cloud-transcriber";
 
 describe("device transcription routing", () => {
+  it("classifies phones before desktop capability", () => {
+    expect(classifyDeviceClass({ isPhone: true, hasWebGPU: true, hardwareConcurrency: 12 })).toBe("phone");
+    expect(classifyDeviceClass({ isPhone: false, hasWebGPU: true, hardwareConcurrency: 8, deviceMemory: 8 })).toBe("capable-desktop");
+    expect(classifyDeviceClass({ isPhone: false, hasWebGPU: false, hardwareConcurrency: 2, deviceMemory: 2 })).toBe("constrained-desktop");
+  });
   it("keeps capable desktops local in automatic mode", () => {
     expect(shouldUseCloud("auto", "capable-desktop")).toBe(false);
     expect(shouldUseCloud("auto", "constrained-desktop")).toBe(true);
