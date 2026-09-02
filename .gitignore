@@ -1,7 +1,8 @@
 node_modules/
-dist/
 .tmpchrome/
 *.local
 *.tar.gz
 *.tgz
+web/
+.openai/
 web/.git.source-backup/
