@@ -12,8 +12,8 @@ export class TranscriptionRouter {
       if (!request.audio) throw new Error("An audio recording is required for cloud transcription.");
       return this.cloud.transcribe(request.audio, onProgress);
     }
-    if (!request.pcm) throw new Error("Audio samples were not available for local transcription.");
     try {
+      if (!request.pcm) throw new Error("Audio samples were not available for local transcription.");
       const text = await transcribe(request.pcm, onProgress);
       return { text, provider: "local-whisper" };
     } catch (error) {
