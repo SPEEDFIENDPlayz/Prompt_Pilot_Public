@@ -1,1 +1,0 @@
-const e="src/offscreen/offscreen.html",n="gemini-3.5-flash-lite",s="https://generativelanguage.googleapis.com/v1beta/interactions",a={primary:{model:"onnx-community/whisper-base.en",device:"webgpu"},fallback:{model:"onnx-community/whisper-tiny.en",device:"wasm"}};export{s as G,e as O,a as W,n as a};

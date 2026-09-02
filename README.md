@@ -1,23 +1,20 @@
 # Prompt Pilot
 
-Prompt Pilot is a personal Manifest V3 Chrome extension for turning messy voice notes into prompts for ChatGPT.
+Prompt Pilot is split into two independent applications:
 
-## Local development
+- `extension/` — the Manifest V3 Chrome extension for ChatGPT.com.
+- `website/` — the mobile-friendly PWA and desktop fallback experience.
 
-```text
-npm install
-npm run build
-```
-
-Load the `dist` folder from `chrome://extensions` with Developer mode enabled. Open Prompt Pilot’s toolbar action once to configure a Gemini API key and grant microphone access.
-
-The first recording downloads the local Whisper model and may take longer. Later recordings reuse the browser cache. Audio is recorded and transcribed locally; only the resulting transcript text is sent to Gemini. Prompt Pilot never presses ChatGPT’s Send button.
-
-## Checks
+Build and test them independently:
 
 ```text
-npm test
-npm run build
+npm --prefix extension install
+npm --prefix extension test
+npm --prefix extension run build
+
+npm --prefix website install
+npm --prefix website test
+npm --prefix website run build
 ```
 
-The extension is intentionally scoped to `https://chatgpt.com/*` and does not save recordings, transcript history, or analytics.
+The extension keeps local Whisper transcription on capable desktop browsers and integrates directly with the ChatGPT composer. The website uses native phone dictation on mobile and device-aware local/cloud transcription on desktop.
