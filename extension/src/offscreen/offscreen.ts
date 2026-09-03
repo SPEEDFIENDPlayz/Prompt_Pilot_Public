@@ -8,6 +8,7 @@ let activeUseCloud = false;
 let activeAllowCloudFallback = false;
 let activeProfile: "capable" | "constrained" = "capable";
 let bufferedSession: BufferedWhisperSession | undefined;
+let engineStartPromise: Promise<void> | undefined;
 
 chrome.runtime.onMessage.addListener((message: Record<string, unknown>, _sender, sendResponse) => {
   if (message.type === "ENGINE_START" && typeof message.operationId === "string") {
@@ -15,7 +16,8 @@ chrome.runtime.onMessage.addListener((message: Record<string, unknown>, _sender,
     activeUseCloud = message.useCloud === true;
     activeAllowCloudFallback = message.allowCloudFallback === true;
     activeProfile = message.captureProfile === "constrained" ? "constrained" : "capable";
-    void start(message.operationId);
+    engineStartPromise = start(message.operationId).finally(() => { engineStartPromise = undefined; });
+    void engineStartPromise.catch(() => undefined);
     return false;
   } else if (message.type === "ENGINE_STOP" && typeof message.operationId === "string") {
     sendResponse({ ok: true });
@@ -32,6 +34,7 @@ function notify(message: Record<string, unknown>): void {
 async function start(operationId: string): Promise<void> {
   if (activeOperationId) return;
   activeOperationId = operationId;
+  bufferedSession = undefined;
   try {
     const profile = activeProfile === "constrained" ? (await import("../shared/config")).AUDIO_CAPTURE_PROFILES.constrained : (await import("../shared/config")).AUDIO_CAPTURE_PROFILES.capable;
     await recorder.start(profile);
@@ -59,6 +62,9 @@ async function start(operationId: string): Promise<void> {
 async function stop(operationId: string): Promise<void> {
   if (activeOperationId !== operationId) return;
   try {
+    // A very fast start/stop can otherwise race AudioWorklet setup and leave
+    // a session attached after the recorder has already been finalized.
+    if (engineStartPromise) await engineStartPromise;
     const blob = await recorder.stop();
     notify({ type: "ENGINE_STATE", operationId, state: "transcribing" });
     if (activeUseCloud) {

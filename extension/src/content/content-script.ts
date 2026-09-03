@@ -23,6 +23,6 @@ chrome.runtime.onMessage.addListener((message: ProgressMessage | { type: "COMMAN
 
 void chrome.runtime.sendMessage({ type: "GET_PENDING_RESULT" }).then((reply) => {
   if (!reply?.result) return;
-  if (reply.result.refined) void controller.handleMessage({ type: "RESULT", ...reply.result });
-  else if (reply.result.error) void controller.handleMessage({ type: "RESULT_ERROR", ...reply.result.error, operationId: reply.result.operationId, raw: reply.result.raw });
+  if (reply.result.refined) void controller.handleMessage({ type: "RESULT", ...reply.result }, true);
+  else if (reply.result.error) void controller.handleMessage({ type: "RESULT_ERROR", ...reply.result.error, operationId: reply.result.operationId, raw: reply.result.raw }, true);
 });

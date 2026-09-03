@@ -40,4 +40,22 @@ describe("GeminiRefiner", () => {
   it("requires a configured key", async () => {
     await expect(new GeminiRefiner(async () => undefined).refine("raw", 1)).rejects.toMatchObject({ code: "missing-key" });
   });
+
+  it("sends compact context separately from the new transcript", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ output_text: "Context-aware prompt" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(new GeminiRefiner(async () => "key").refine("new request", 2, "Earlier goal and constraints")).resolves.toBe("Context-aware prompt");
+    const request = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(request.input).toContain("Earlier goal and constraints");
+    expect(request.input).toContain("new request");
+  });
+
+  it("supports the user-triggered clarity pass", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ output_text: "Clearer prompt" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(new GeminiRefiner(async () => "key").clarify("messy prompt")).resolves.toBe("Clearer prompt");
+    const request = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(request.input).toBe("messy prompt");
+    expect(request.system_instruction).toContain("without changing intent");
+  });
 });

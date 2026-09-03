@@ -2,6 +2,8 @@ import "./options.css";
 
 const keyInput = document.querySelector<HTMLInputElement>("#api-key")!;
 const keyStatus = document.querySelector<HTMLElement>("#key-status")!;
+const groqKeyInput = document.querySelector<HTMLInputElement>("#groq-key")!;
+const groqKeyStatus = document.querySelector<HTMLElement>("#groq-key-status")!;
 const micStatus = document.querySelector<HTMLElement>("#mic-status")!;
 const shortcut = document.querySelector<HTMLElement>("#shortcut")!;
 const transcriptionMode = document.querySelector<HTMLSelectElement>("#transcription-mode")!;
@@ -15,6 +17,8 @@ async function refresh(): Promise<void> {
   const mode = await chrome.storage.local.get("transcriptionMode");
   transcriptionMode.value = mode.transcriptionMode === "local" || mode.transcriptionMode === "cloud" ? mode.transcriptionMode : "auto";
   transcriptionStatus.textContent = transcriptionMode.value === "cloud" ? "Audio will be sent to Gemini Transcribe." : transcriptionMode.value === "local" ? "Audio stays on this computer." : "Prompt Pilot chooses local or cloud based on device capability.";
+  const groq = await chrome.storage.local.get("groqApiKey");
+  groqKeyStatus.textContent = typeof groq.groqApiKey === "string" && groq.groqApiKey ? "A Groq key is saved locally." : "No Groq key configured. Chat context remains unavailable.";
 }
 
 document.querySelector<HTMLButtonElement>("#save-key")!.addEventListener("click", async () => {
@@ -35,6 +39,20 @@ document.querySelector<HTMLButtonElement>("#remove-key")!.addEventListener("clic
   await chrome.storage.local.remove("geminiApiKey");
   keyInput.value = "";
   keyStatus.textContent = "Key removed.";
+});
+
+document.querySelector<HTMLButtonElement>("#save-groq-key")!.addEventListener("click", async () => {
+  const key = groqKeyInput.value.trim();
+  if (!key) { groqKeyStatus.textContent = "Enter a Groq key first."; return; }
+  await chrome.storage.local.set({ groqApiKey: key });
+  groqKeyInput.value = "";
+  groqKeyStatus.textContent = "Saved locally.";
+});
+
+document.querySelector<HTMLButtonElement>("#remove-groq-key")!.addEventListener("click", async () => {
+  await chrome.storage.local.remove("groqApiKey");
+  groqKeyInput.value = "";
+  groqKeyStatus.textContent = "Groq key removed.";
 });
 
 document.querySelector<HTMLButtonElement>("#enable-mic")!.addEventListener("click", async () => {

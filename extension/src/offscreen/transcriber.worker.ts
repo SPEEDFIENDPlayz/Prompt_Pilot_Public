@@ -15,6 +15,7 @@ type Profile = { model: string; device: "webgpu" | "wasm" };
 let transcriber: any;
 let loadedProfile: Profile | undefined;
 let loadPromise: Promise<void> | undefined;
+let workQueue = Promise.resolve();
 
 async function load(profile: Profile, id: number, operationId?: string): Promise<void> {
   if (transcriber && loadedProfile?.model === profile.model && loadedProfile.device === profile.device) return;
@@ -41,9 +42,16 @@ function describeError(error: unknown): string {
   try { return JSON.stringify(error); } catch { return String(error); }
 }
 
-self.onmessage = async (event: MessageEvent<{ type: string; id: number; operationId?: string; audio?: Float32Array; primary: Profile; fallback: Profile }>) => {
+self.onmessage = (event: MessageEvent<{ type: string; id: number; operationId?: string; audio?: Float32Array; primary: Profile; fallback: Profile }>) => {
   if (event.data.type !== "transcribe" && event.data.type !== "warm") return;
-  const { id, operationId, audio, primary, fallback } = event.data;
+  // ONNX/WebGPU is considerably more reliable when model loading and
+  // inference are single-flight. This also prevents a late chunk from
+  // competing with the final post-recording pass.
+  workQueue = workQueue.then(() => handleRequest(event.data), () => handleRequest(event.data));
+};
+
+async function handleRequest(event: { type: string; id: number; operationId?: string; audio?: Float32Array; primary: Profile; fallback: Profile }): Promise<void> {
+  const { id, operationId, audio, primary, fallback } = event;
   let primaryError: unknown;
   try {
     try {
@@ -67,7 +75,7 @@ self.onmessage = async (event: MessageEvent<{ type: string; id: number; operatio
         throw new Error(`No local Whisper backend could be initialized.${primaryText} WASM error: ${describeError(error)}`);
       }
     }
-    if (event.data.type === "warm") return;
+    if (event.type === "warm") return;
     if (!audio) throw new Error("No audio samples were provided.");
     const result = await transcriber(audio, { chunk_length_s: 30, stride_length_s: 5, return_timestamps: false });
     self.postMessage({ type: "result", id, text: typeof result?.text === "string" ? result.text.trim() : "" });
@@ -75,4 +83,4 @@ self.onmessage = async (event: MessageEvent<{ type: string; id: number; operatio
     console.error("[Prompt Pilot] Whisper transcription failed", error);
     self.postMessage({ type: "error", id, message: error instanceof Error ? error.message : "Local Whisper failed." });
   }
-};
+}

@@ -13,6 +13,11 @@ export interface ComposerTarget {
   surface: HTMLElement;
 }
 
+export interface ChatContextExport {
+  text: string;
+  messageCount: number;
+}
+
 function isVisible(element: Element): boolean {
   const node = element as HTMLElement;
   const style = getComputedStyle(node);
@@ -141,6 +146,7 @@ export class ChatGPTAdapter {
     if (!host?.isConnected || !surface?.isConnected) return;
     const surfaceRect = surface.getBoundingClientRect();
     if (!surfaceRect.width || !surfaceRect.height) return;
+    this.updateTheme(surface);
 
     const hostRect = host.getBoundingClientRect();
     const viewportPadding = 12;
@@ -171,6 +177,42 @@ export class ChatGPTAdapter {
     host.dataset.placementConstrained = placementConstrained ? "true" : "false";
     this.setHostPosition(host, chosen.left, chosen.top, chosen.side);
     if (placementConstrained) host.dispatchEvent(new Event("prompt-pilot:placement-constrained"));
+  }
+
+  /**
+   * Capture the currently rendered conversation as role-labelled text. This
+   * deliberately stays in the ChatGPT adapter so selectors never leak into
+   * the recording/refinement layers.
+   */
+  exportConversation(): ChatContextExport | null {
+    const messages = [...document.querySelectorAll<HTMLElement>("[data-message-author-role]")]
+      .filter((element) => {
+        if (!isVisible(element) || this.mount?.contains(element)) return false;
+        const role = element.dataset.messageAuthorRole;
+        return role === "user" || role === "assistant";
+      })
+      .map((element) => ({ role: element.dataset.messageAuthorRole as "user" | "assistant", text: (element.innerText || element.textContent || "").replace(/\u00a0/g, " ").trim() }))
+      .filter((message) => message.text);
+    if (!messages.length) return null;
+    const text = messages.map((message) => `${message.role.toUpperCase()}\n${message.text}`).join("\n\n");
+    return { text, messageCount: messages.length };
+  }
+
+  private updateTheme(surface: HTMLElement): void {
+    if (!this.mount) return;
+    const luminanceTheme = (color: string): boolean | undefined => {
+      const match = color.match(/rgba?\(([^)]+)\)/);
+      if (!match) return undefined;
+      const channels = match[1].split(",").map((part) => Number.parseFloat(part.trim()));
+      const alpha = channels.length >= 4 ? channels[3] : 1;
+      if (channels.length < 3 || !channels.slice(0, 3).every((channel) => Number.isFinite(channel)) || alpha === 0) return undefined;
+      const [red, green, blue] = channels;
+      return (0.2126 * red + 0.7152 * green + 0.0722 * blue) < 128;
+    };
+    let dark = luminanceTheme(getComputedStyle(surface).backgroundColor);
+    if (dark === undefined) dark = luminanceTheme(getComputedStyle(document.body).backgroundColor);
+    if (dark === undefined) dark = document.documentElement.classList.contains("dark") || matchMedia("(prefers-color-scheme: dark)").matches;
+    this.mount.dataset.theme = dark ? "dark" : "light";
   }
 
   private setHostPosition(host: HTMLElement, left: number, top: number, side?: PlacementSide): void {

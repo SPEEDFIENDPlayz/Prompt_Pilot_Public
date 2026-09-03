@@ -1,1 +1,0 @@
-function t(){const e=navigator.hardwareConcurrency||2,n=navigator.deviceMemory,o="gpu"in navigator,r=typeof n=="number"&&n<4;return{deviceClass:o&&e>=6&&!r?"capable-desktop":"constrained-desktop",hasWebGPU:o,hardwareConcurrency:e,deviceMemory:n}}function a(e,n){return e==="cloud"||e==="auto"&&n==="constrained-desktop"}export{t as d,a as s};

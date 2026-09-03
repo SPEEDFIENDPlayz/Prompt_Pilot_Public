@@ -27,6 +27,7 @@ const manifest: ManifestV3Export = {
   host_permissions: [
     "https://chatgpt.com/*",
     "https://generativelanguage.googleapis.com/*",
+    "https://api.groq.com/*",
     "https://huggingface.co/*",
     "https://*.huggingface.co/*",
   ],

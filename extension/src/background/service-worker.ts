@@ -11,6 +11,10 @@ import type { ClientMessage, ProgressMessage } from "../shared/types";
 import type { ProcessingLevel } from "../shared/config";
 import type { DeviceClass, TranscriptionMode } from "../shared/device-capabilities";
 import { GeminiTranscriber } from "./gemini-transcriber";
+import { GroqContextCondenser } from "./groq-context-condenser";
+import type { ActiveOperation } from "./operation-coordinator";
+import { RefinerError } from "../shared/errors";
+import { acceptsEngineProgress } from "../shared/operation-phase";
 
 const refiner = new GeminiRefiner(async () => {
   const stored = await chrome.storage.local.get("geminiApiKey");
@@ -19,6 +23,10 @@ const refiner = new GeminiRefiner(async () => {
 const transcriber = new GeminiTranscriber(async () => {
   const stored = await chrome.storage.local.get("geminiApiKey");
   return typeof stored.geminiApiKey === "string" ? stored.geminiApiKey : undefined;
+});
+const contextCondenser = new GroqContextCondenser(async () => {
+  const stored = await chrome.storage.local.get("groqApiKey");
+  return typeof stored.groqApiKey === "string" ? stored.groqApiKey : undefined;
 });
 
 void chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
@@ -41,7 +49,7 @@ chrome.runtime.onMessage.addListener((message: ClientMessage | Record<string, un
     const level = message.level === 1 || message.level === 2 || message.level === 3 ? message.level : 2;
     const transcriptionMode = message.transcriptionMode === "local" || message.transcriptionMode === "cloud" ? message.transcriptionMode : "auto";
     const deviceClass = message.deviceClass === "constrained-desktop" ? "constrained-desktop" : "capable-desktop";
-    void toggleRecording(sender.tab.id, level as ProcessingLevel, transcriptionMode as TranscriptionMode, deviceClass as DeviceClass).catch((error) => {
+    void toggleRecording(sender.tab.id, level as ProcessingLevel, transcriptionMode as TranscriptionMode, deviceClass as DeviceClass, typeof message.chatContextExport === "string" ? message.chatContextExport : undefined, message.includeChatContext === true).catch((error) => {
       const detail = error instanceof Error ? error.message : "Set up microphone access in Prompt Pilot settings first.";
       void chrome.tabs.sendMessage(sender.tab!.id!, {
         type: "STATE",
@@ -86,6 +94,31 @@ chrome.runtime.onMessage.addListener((message: ClientMessage | Record<string, un
     return true;
   }
 
+  if (message.type === "GET_GROQ_KEY_STATUS") {
+    void chrome.storage.local.get("groqApiKey").then(({ groqApiKey }) => sendResponse({ available: typeof groqApiKey === "string" && Boolean(groqApiKey.trim()) }));
+    return true;
+  }
+
+  if (message.type === "REFINE_TRANSCRIPT" && sender.tab?.id) {
+    const level = message.level === 1 || message.level === 2 || message.level === 3 ? message.level : 2;
+    sendResponse({ ok: true });
+    void processTranscript({
+      id: message.operationId as string,
+      tabId: sender.tab.id,
+      level,
+      chatContextExport: typeof message.contextExport === "string" ? message.contextExport : undefined,
+      chatContextRequested: message.includeChatContext === true,
+      phase: "transcribing",
+    }, message.raw as string);
+    return false;
+  }
+
+  if (message.type === "CLARIFY_PROMPT" && sender.tab?.id) {
+    sendResponse({ ok: true });
+    void processClarification({ id: message.operationId as string, tabId: sender.tab.id }, message.prompt as string);
+    return false;
+  }
+
   if (message.type === "OPEN_OPTIONS") {
     void openOptionsPage().then((ok) => sendResponse({ ok }));
     return true;
@@ -106,18 +139,26 @@ chrome.runtime.onMessage.addListener((message: ClientMessage | Record<string, un
 chrome.runtime.onMessage.addListener((message: Record<string, unknown>) => {
   const operation = getCurrentOperation();
   if (message.type === "ENGINE_PROGRESS" && operation && message.operationId === operation.id) {
-    sendProgress(operation.tabId, { type: "STATE", operationId: operation.id, state: "transcribing", detail: typeof message.detail === "string" ? message.detail : "Loading Whisper…" });
+    if (!acceptsEngineProgress(operation.phase)) return;
+    sendProgress(operation.tabId, { type: "STATE", operationId: operation.id, state: operation.phase === "recording" ? "recording" : "transcribing", detail: typeof message.detail === "string" ? message.detail : "Loading local model…" });
     return;
   }
   if (message.type === "ENGINE_STATE" && operation && message.operationId === operation.id) {
+    if (operation.phase !== "recording" && operation.phase !== "transcribing") return;
+    operation.phase = "transcribing";
     sendProgress(operation.tabId, { type: "STATE", operationId: operation.id, state: "transcribing" });
     return;
   }
   if (message.type === "ENGINE_TRANSCRIPT" && operation && message.operationId === operation.id) {
+    if (operation.phase !== "transcribing" || operation.transcriptProcessed) return;
+    operation.phase = "refining";
+    operation.transcriptProcessed = true;
     const raw = typeof message.raw === "string" ? message.raw : "";
     void processTranscript(operation, raw);
   }
   if (message.type === "ENGINE_AUDIO" && operation && message.operationId === operation.id) {
+    if (operation.phase !== "transcribing" || operation.transcriptProcessed) return;
+    operation.transcriptProcessed = true;
     if (message.audio instanceof ArrayBuffer) void processAudio(operation, message.audio, typeof message.mimeType === "string" ? message.mimeType : "audio/webm");
   }
   if (message.type === "ENGINE_FAILURE" && operation && message.operationId === operation.id) {
@@ -128,18 +169,29 @@ chrome.runtime.onMessage.addListener((message: Record<string, unknown>) => {
     } else {
       sendProgress(operation.tabId, { type: "RESULT_ERROR", operationId: operation.id, raw: "", code, message: detail });
     }
-    finishOperation(operation.id);
+    finishOperation(operation.id, "error");
   }
 });
 
-async function processTranscript(operation: { id: string; tabId: number; level: ProcessingLevel }, raw: string): Promise<void> {
+async function processTranscript(operation: Pick<ActiveOperation, "id" | "tabId" | "level" | "chatContextExport" | "chatContextBrief" | "chatContextRequested" | "phase">, raw: string): Promise<void> {
   sendProgress(operation.tabId, { type: "RAW_TRANSCRIPT", operationId: operation.id, raw });
-  sendProgress(operation.tabId, { type: "STATE", operationId: operation.id, state: "refining" });
+  if (operation.chatContextRequested) sendProgress(operation.tabId, { type: "STATE", operationId: operation.id, state: "refining", detail: "Condensing current chat context…" });
+  else sendProgress(operation.tabId, { type: "STATE", operationId: operation.id, state: "refining", detail: "Refining prompt…" });
+  let succeeded = false;
   try {
-    const refined = await refiner.refine(raw, operation.level);
+    if (!raw.trim()) throw new RefinerError("api-error", "No speech was detected. Try recording again.");
+    let contextBrief: string | undefined = operation.chatContextBrief;
+    if (operation.chatContextRequested) {
+      if (!operation.chatContextExport?.trim()) throw new RefinerError("chat-context-unavailable", "Current ChatGPT conversation could not be exported. Refine without context or try again.");
+      contextBrief = await contextCondenser.condense(operation.chatContextExport);
+      if ("chatContextBrief" in operation) operation.chatContextBrief = contextBrief;
+      sendProgress(operation.tabId, { type: "STATE", operationId: operation.id, state: "refining", detail: "Refining prompt with chat context…" });
+    }
+    const refined = await refiner.refine(raw, operation.level, contextBrief);
     const result = { operationId: operation.id, raw, refined };
     savePendingResult(operation.tabId, result);
     sendProgress(operation.tabId, { type: "RESULT", ...result });
+    succeeded = true;
   } catch (error) {
     const code = typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : "api-error";
     const detail = error instanceof Error ? error.message : "Refinement failed. Your raw transcript is still available.";
@@ -147,11 +199,11 @@ async function processTranscript(operation: { id: string; tabId: number; level: 
     savePendingResult(operation.tabId, result);
     sendProgress(operation.tabId, { type: "RESULT_ERROR", operationId: operation.id, raw, code, message: detail });
   } finally {
-    finishOperation(operation.id);
+    finishOperation(operation.id, succeeded ? "complete" : "error");
   }
 }
 
-async function processAudio(operation: { id: string; tabId: number; level: ProcessingLevel }, audio: ArrayBuffer, mimeType: string): Promise<void> {
+async function processAudio(operation: Pick<ActiveOperation, "id" | "tabId" | "level" | "chatContextExport" | "chatContextRequested" | "phase">, audio: ArrayBuffer, mimeType: string): Promise<void> {
   sendProgress(operation.tabId, { type: "STATE", operationId: operation.id, state: "transcribing", detail: "Transcribing audio in the cloud…" });
   try {
     const raw = await transcriber.transcribe(audio, mimeType || "audio/webm");
@@ -161,7 +213,19 @@ async function processAudio(operation: { id: string; tabId: number; level: Proce
     const message = error instanceof Error ? error.message : "Cloud transcription failed. Your recording could not be transcribed.";
     savePendingResult(operation.tabId, { operationId: operation.id, raw: "", error: { code, message } });
     sendProgress(operation.tabId, { type: "RESULT_ERROR", operationId: operation.id, raw: "", code, message });
-    finishOperation(operation.id);
+    finishOperation(operation.id, "error");
+  }
+}
+
+async function processClarification(operation: { id: string; tabId: number }, prompt: string): Promise<void> {
+  sendProgress(operation.tabId, { type: "STATE", operationId: operation.id, state: "clarifying", detail: "Making prompt clearer…" });
+  try {
+    const clarified = await refiner.clarify(prompt);
+    sendProgress(operation.tabId, { type: "CLARIFIED_RESULT", operationId: operation.id, clarified });
+  } catch (error) {
+    const code = typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : "api-error";
+    const message = error instanceof Error ? error.message : "Could not make the prompt clearer.";
+    sendProgress(operation.tabId, { type: "CLARIFY_ERROR", operationId: operation.id, code, message });
   }
 }
 

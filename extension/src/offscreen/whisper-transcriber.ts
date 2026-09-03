@@ -1,4 +1,4 @@
-import { WHISPER_PROFILES } from "../shared/config";
+import { LOCAL_TRANSCRIPTION_TIMEOUT_MS, WHISPER_PROFILES } from "../shared/config";
 
 let worker: Worker | undefined;
 let requestId = 0;
@@ -33,6 +33,7 @@ function ensureWorker(): Worker {
     for (const request of pending.values()) request.reject(new Error("Whisper worker stopped unexpectedly."));
     pending.clear();
     worker = undefined;
+    warmRequested = false;
   };
   return worker;
 }
@@ -41,15 +42,34 @@ export async function transcribe(audio: Float32Array, operationId: string): Prom
   const id = ++requestId;
   const activeWorker = ensureWorker();
   return new Promise<string>((resolve, reject) => {
-    pending.set(id, { resolve, reject });
-    activeWorker.postMessage({
-      type: "transcribe",
-      id,
-      operationId,
-      audio,
-      primary: WHISPER_PROFILES.primary,
-      fallback: WHISPER_PROFILES.fallback,
-    }, [audio.buffer]);
+    const timeout = window.setTimeout(() => {
+      if (!pending.has(id)) return;
+      pending.delete(id);
+      const error = new Error(`Local Whisper timed out after ${Math.round(LOCAL_TRANSCRIPTION_TIMEOUT_MS / 1000)} seconds.`);
+      console.error("[Prompt Pilot] Local Whisper request timed out", { operationId, timeoutMs: LOCAL_TRANSCRIPTION_TIMEOUT_MS });
+      activeWorker.terminate();
+      worker = undefined;
+      warmRequested = false;
+      for (const request of pending.values()) request.reject(error);
+      pending.clear();
+      reject(error);
+    }, LOCAL_TRANSCRIPTION_TIMEOUT_MS);
+    const finish = (fn: (value: string) => void) => (value: string) => { window.clearTimeout(timeout); fn(value); };
+    pending.set(id, { resolve: finish(resolve), reject: (error) => { window.clearTimeout(timeout); reject(error); } });
+    try {
+      activeWorker.postMessage({
+        type: "transcribe",
+        id,
+        operationId,
+        audio,
+        primary: WHISPER_PROFILES.primary,
+        fallback: WHISPER_PROFILES.fallback,
+      }, [audio.buffer]);
+    } catch (error) {
+      window.clearTimeout(timeout);
+      pending.delete(id);
+      reject(error instanceof Error ? error : new Error("Whisper worker request failed."));
+    }
   });
 }
 

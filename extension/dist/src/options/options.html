@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Prompt Pilot settings</title>
     <script type="module" crossorigin src="/assets/modulepreload-polyfill-B5Qt9EMX.js"></script>
-    <script type="module" crossorigin src="/assets/options-DvSjGP-9.js"></script>
+    <script type="module" crossorigin src="/assets/options-CI6pRoCk.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/options-BgE71M0L.css">
   </head>
   <body>
@@ -17,6 +17,13 @@
         <label for="api-key">Gemini API key</label>
         <div class="row"><input id="api-key" type="password" autocomplete="off" placeholder="Paste your key" /><button id="save-key">Save key</button><button id="remove-key" class="secondary">Remove</button></div>
         <p id="key-status" class="status" role="status"></p>
+      </section>
+      <section>
+        <h2>Chat context (optional)</h2>
+        <label for="groq-key">Groq API key</label>
+        <div class="row"><input id="groq-key" type="password" autocomplete="off" placeholder="Paste your Groq key" /><button id="save-groq-key">Save key</button><button id="remove-groq-key" class="secondary">Remove</button></div>
+        <p id="groq-key-status" class="status" role="status"></p>
+        <p>On capable computers, the optional chat-context checkbox uses Groq to condense the current conversation before Gemini refines your new prompt. The full conversation is discarded after the operation.</p>
       </section>
       <section>
         <h2>Microphone</h2>
@@ -36,7 +43,7 @@
         <p>Current shortcut: <strong id="shortcut">Loading…</strong></p>
         <button id="change-shortcut" class="secondary">Change shortcut</button>
       </section>
-      <p class="privacy">Local mode sends only transcript text to Gemini for refinement. Cloud mode temporarily sends the recording to Gemini Transcribe, then sends the transcript text to Gemini Flash-Lite. Prompt Pilot does not save recordings, transcript history, or analytics.</p>
+    <p class="privacy">Local mode sends only transcript text to Gemini for refinement. Cloud mode temporarily sends the recording to Gemini Transcribe, then sends the transcript text to Gemini Flash-Lite. If you explicitly enable chat context on a capable local computer, the current conversation is sent to Groq for condensation and only the compact brief is sent to Gemini. Prompt Pilot does not save recordings, chat exports, transcript history, or analytics.</p>
     </main>
   </body>
 </html>

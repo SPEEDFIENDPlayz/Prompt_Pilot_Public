@@ -18,7 +18,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/content-script.ts-loader-EGfNZmY_.js"
+        "assets/content-script.ts-loader-FRLu3nE5.js"
       ],
       "matches": [
         "https://chatgpt.com/*"
@@ -29,6 +29,7 @@
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://generativelanguage.googleapis.com/*",
+    "https://api.groq.com/*",
     "https://huggingface.co/*",
     "https://*.huggingface.co/*"
   ],
@@ -52,8 +53,8 @@
         "https://chatgpt.com/*"
       ],
       "resources": [
-        "assets/device-capabilities-k0pcgEFZ.js",
-        "assets/content-script.ts-Df6Xq_ut.js"
+        "assets/operation-phase-BDyNh-gO.js",
+        "assets/content-script.ts-CJPqgaJw.js"
       ],
       "use_dynamic_url": false
     }
